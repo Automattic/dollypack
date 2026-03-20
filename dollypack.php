@@ -5,7 +5,8 @@
  * Version: 1.0.0
  * Requires at least: 6.9
  * Requires PHP: 7.4
- * Author: Artpi
+ * Author: Automattic
+ * Author URI: https://automattic.com/ai
  * License: GPL-2.0-or-later
  */
 
@@ -17,6 +18,7 @@ define( 'DOLLYPACK_DIR', __DIR__ );
 
 require_once DOLLYPACK_DIR . '/includes/class-dollypack-ability.php';
 require_once DOLLYPACK_DIR . '/includes/class-dollypack-github-ability.php';
+require_once DOLLYPACK_DIR . '/includes/class-dollypack-google-ability.php';
 require_once DOLLYPACK_DIR . '/includes/class-settings.php';
 
 /**
@@ -43,6 +45,10 @@ function dollypack_get_available_abilities() {
 		'github-write'         => array(
 			'file'  => 'abilities/github-write.php',
 			'class' => 'Dollypack_GitHub_Write',
+		),
+		'google-calendar-read' => array(
+			'file'  => 'abilities/google-calendar-read.php',
+			'class' => 'Dollypack_Google_Calendar_Read',
 		),
 	);
 }

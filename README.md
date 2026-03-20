@@ -17,6 +17,7 @@ WordPress abilities pack that extends [Dolly](https://wordpress.com), the WordPr
 | `github-notifications` | `Dollypack_GitHub_Notifications` | List and manage GitHub notifications (list, mark-read). | `idempotent` |
 | `github-search` | `Dollypack_GitHub_Search` | Search GitHub for code, issues, repositories, or commits. | `readonly`, `idempotent` |
 | `github-write` | `Dollypack_GitHub_Write` | Create or update resources on GitHub — issues, comments, pull requests, etc. | `destructive` |
+| `google-calendar-read` | `Dollypack_Google_Calendar_Read` | Read calendars and events from Google Calendar (list_calendars, list_events, get_event). | `readonly`, `idempotent` |
 
 ## Adding a new ability
 
@@ -27,11 +28,13 @@ Create a file in `abilities/` with a class extending `Dollypack_Ability` (or a s
 ```
 Dollypack_Ability (abstract)
 ├── Dollypack_WP_Remote_Request
-└── Dollypack_GitHub_Ability (abstract, shared $settings + github_request())
-    ├── Dollypack_GitHub_Read
-    ├── Dollypack_GitHub_Notifications
-    ├── Dollypack_GitHub_Search
-    └── Dollypack_GitHub_Write
+├── Dollypack_GitHub_Ability (abstract, shared $settings + github_request())
+│   ├── Dollypack_GitHub_Read
+│   ├── Dollypack_GitHub_Notifications
+│   ├── Dollypack_GitHub_Search
+│   └── Dollypack_GitHub_Write
+└── Dollypack_Google_Ability (abstract, OAuth 2.0 + google_request())
+    └── Dollypack_Google_Calendar_Read
 ```
 
 ### 2. Implement required methods
@@ -83,6 +86,16 @@ When adding a new service (e.g. Slack), create an abstract parent in `includes/`
 3. Add a helper method for authenticated API requests (like `github_request()`).
 4. Require the file in `dollypack.php`.
 5. Have each concrete ability extend this parent.
+
+### OAuth settings pattern
+
+For services requiring OAuth 2.0 (e.g. Google), the parent class handles the full authorization code flow:
+
+1. **`$settings`** declares `client_id` and `client_secret` — rendered as standard inputs by the settings page.
+2. **`render_settings_html()`** — static method that outputs extra `<tr>` rows in the settings form (Connect/Disconnect buttons, connection status). The settings page calls this automatically if the method exists on the parent class.
+3. **`handle_oauth_callback()`** and **`handle_disconnect()`** — registered as `admin_post_` hooks in the constructor (with a static flag to avoid duplicate registration).
+4. **`has_required_settings()`** is overridden to also check that a refresh token exists, so abilities stay disabled until the OAuth flow completes.
+5. **Token storage** — access token, refresh token, and expiry are stored as separate `wp_options`. The `get_access_token()` method auto-refreshes when the token is expired or expiring within 60 seconds.
 
 ## Design principles
 

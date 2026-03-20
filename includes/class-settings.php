@@ -77,14 +77,18 @@ class Dollypack_Settings {
 
 			if ( ! isset( $groups[ $group_label ] ) ) {
 				$groups[ $group_label ] = array(
-					'label'     => $group_label,
-					'settings'  => array(),
-					'abilities' => array(),
+					'label'        => $group_label,
+					'settings'     => array(),
+					'abilities'    => array(),
+					'parent_class' => '',
 				);
 			}
 
 			$parent_class = ( new ReflectionClass( $ability ) )->getParentClass();
 			if ( $parent_class && $parent_class->getName() !== 'Dollypack_Ability' ) {
+				if ( empty( $groups[ $group_label ]['parent_class'] ) ) {
+					$groups[ $group_label ]['parent_class'] = $parent_class->getName();
+				}
 				$parent_defaults = $parent_class->getDefaultProperties();
 				if ( ! empty( $parent_defaults['settings'] ) ) {
 					foreach ( $parent_defaults['settings'] as $setting_id => $setting ) {
@@ -144,6 +148,12 @@ class Dollypack_Settings {
 								</td>
 							</tr>
 						<?php endforeach; ?>
+
+						<?php
+						if ( ! empty( $group['parent_class'] ) && method_exists( $group['parent_class'], 'render_settings_html' ) ) {
+							$group['parent_class']::render_settings_html();
+						}
+						?>
 
 						<tr>
 							<th scope="row">Abilities</th>
