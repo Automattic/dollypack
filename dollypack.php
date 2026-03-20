@@ -15,22 +15,62 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'DOLLYPACK_DIR', __DIR__ );
 
+require_once DOLLYPACK_DIR . '/includes/class-dollypack-ability.php';
+require_once DOLLYPACK_DIR . '/includes/class-dollypack-github-ability.php';
 require_once DOLLYPACK_DIR . '/includes/class-settings.php';
 
 /**
- * Available abilities: id => relative file path.
+ * Available abilities: id => [ 'file' => ..., 'class' => ... ].
  */
 function dollypack_get_available_abilities() {
 	return array(
-		'wp-remote-request' => array(
-			'file'        => 'abilities/wp-remote-request.php',
-			'description' => 'Perform an HTTP request using wp_remote_request().',
+		'wp-remote-request'    => array(
+			'file'  => 'abilities/wp-remote-request.php',
+			'class' => 'Dollypack_WP_Remote_Request',
+		),
+		'github-read'          => array(
+			'file'  => 'abilities/github-read.php',
+			'class' => 'Dollypack_GitHub_Read',
+		),
+		'github-notifications' => array(
+			'file'  => 'abilities/github-notifications.php',
+			'class' => 'Dollypack_GitHub_Notifications',
+		),
+		'github-search'        => array(
+			'file'  => 'abilities/github-search.php',
+			'class' => 'Dollypack_GitHub_Search',
+		),
+		'github-write'         => array(
+			'file'  => 'abilities/github-write.php',
+			'class' => 'Dollypack_GitHub_Write',
 		),
 	);
 }
 
 /**
- * Register the "dolly" ability category.
+ * Build ability instances for all available abilities.
+ * Keyed by ability id.
+ */
+function dollypack_get_ability_instances() {
+	static $instances = null;
+
+	if ( null !== $instances ) {
+		return $instances;
+	}
+
+	$instances = array();
+	$available = dollypack_get_available_abilities();
+
+	foreach ( $available as $id => $ability ) {
+		require_once DOLLYPACK_DIR . '/' . $ability['file'];
+		$instances[ $id ] = new $ability['class']();
+	}
+
+	return $instances;
+}
+
+/**
+ * Register the "dollypack" ability category.
  */
 add_action( 'wp_abilities_api_categories_init', function () {
 	wp_register_ability_category( 'dollypack', array(
@@ -40,15 +80,15 @@ add_action( 'wp_abilities_api_categories_init', function () {
 } );
 
 /**
- * Load enabled abilities.
+ * Load and register enabled abilities.
  */
 add_action( 'wp_abilities_api_init', function () {
-	$available = dollypack_get_available_abilities();
-	$enabled   = get_option( 'dollypack_enabled_abilities', array_keys( $available ) );
+	$instances = dollypack_get_ability_instances();
+	$enabled   = get_option( 'dollypack_enabled_abilities', array_keys( $instances ) );
 
-	foreach ( $available as $id => $ability ) {
-		if ( in_array( $id, $enabled, true ) ) {
-			require_once DOLLYPACK_DIR . '/' . $ability['file'];
+	foreach ( $instances as $id => $ability ) {
+		if ( in_array( $id, $enabled, true ) && $ability->has_required_settings() ) {
+			$ability->register();
 		}
 	}
 } );
