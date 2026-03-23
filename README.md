@@ -144,6 +144,7 @@ These rules apply when creating or modifying abilities:
 ## Packaging
 
 - Build all release ZIPs locally with `php scripts/build-packages.php --all`.
+- Override the packaged plugin version with `php scripts/build-packages.php --all --version 1.2.0`.
 - Package composition lives in `config/packages.php`.
-- GitHub Actions publishes `dollypack-core.zip`, `dollypack-github.zip`, `dollypack-google.zip`, and `dollypack-full.zip` as release assets for version tags.
+- GitHub Actions publishes `dollypack-core.zip`, `dollypack-github.zip`, `dollypack-google.zip`, and `dollypack-full.zip` as release assets for `v*` tags, and injects the tag version into each plugin header.
 - Add-on plugins include a fallback admin notice with the releases URL if `dollypack-core` is missing.

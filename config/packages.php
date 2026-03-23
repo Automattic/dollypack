@@ -72,6 +72,7 @@ return array(
 	),
 	'packages' => array(
 		'dollypack-core'   => array(
+			'main_file' => 'dollypack-core.php',
 			'modules' => array(
 				'docs',
 				'package_helper',
@@ -81,6 +82,7 @@ return array(
 			),
 		),
 		'dollypack-github' => array(
+			'main_file' => 'dollypack-github.php',
 			'modules' => array(
 				'docs',
 				'package_helper',
@@ -89,6 +91,7 @@ return array(
 			),
 		),
 		'dollypack-google' => array(
+			'main_file' => 'dollypack-google.php',
 			'modules' => array(
 				'docs',
 				'package_helper',
@@ -97,6 +100,7 @@ return array(
 			),
 		),
 		'dollypack-full'   => array(
+			'main_file' => 'dollypack-full.php',
 			'modules' => array(
 				'docs',
 				'runtime',
