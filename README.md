@@ -21,6 +21,18 @@ Releases publish four installable plugin ZIPs:
 
 Release assets are built from `config/packages.php` by `scripts/build-packages.php`. The repository root plugin mirrors the full bundle for development only and should not be installed alongside any packaged Dollypack plugin.
 
+## Installation
+
+1. Download the plugin ZIP you want from the [GitHub Releases page](https://github.com/Automattic/dollypack/releases).
+2. Choose the package that matches your setup:
+   - `dollypack-full` for a single plugin with all Dollypack abilities.
+   - `dollypack-core` for the shared runtime and `wp-remote-request`.
+   - `dollypack-github` for GitHub abilities, which requires `dollypack-core`.
+   - `dollypack-google` for Google Calendar abilities, which requires `dollypack-core`.
+3. In WordPress admin, go to **Plugins > Add New Plugin > Upload Plugin** and upload the ZIP file.
+4. Activate the plugin after upload. If you are installing `dollypack-github` or `dollypack-google`, install and activate `dollypack-core` first.
+5. Confirm Jetpack is connected to WordPress.com, then configure Dollypack under **Settings > Dollypack**.
+
 ## Current abilities
 
 | Ability ID | Package | Class | Description | Annotations |
