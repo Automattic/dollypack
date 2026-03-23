@@ -8,16 +8,29 @@ WordPress abilities pack that extends [Dolly](https://wordpress.com), the WordPr
 - WordPress 6.9+
 - Jetpack connected to WordPress.com
 
+## Plugin packages
+
+Releases publish four installable plugin ZIPs:
+
+| Plugin | Contents | Dependency |
+|---|---|---|
+| `dollypack-core` | Shared runtime, settings UI, and `wp-remote-request`. | None |
+| `dollypack-github` | All GitHub abilities plus the GitHub service parent class. | `dollypack-core` |
+| `dollypack-google` | Google Calendar read plus the Google service parent class. | `dollypack-core` |
+| `dollypack-full` | Core + GitHub + Google in one standalone plugin. | None |
+
+Release assets are built from `config/packages.php` by `scripts/build-packages.php`. The repository root plugin mirrors the full bundle for development only and should not be installed alongside any packaged Dollypack plugin.
+
 ## Current abilities
 
-| Ability ID | Class | Description | Annotations |
-|---|---|---|---|
-| `wp-remote-request` | `Dollypack_WP_Remote_Request` | Perform an HTTP request using `wp_remote_request()`. | `idempotent` |
-| `github-read` | `Dollypack_GitHub_Read` | Read files, directory listings, and repository metadata from the GitHub API. | `readonly`, `idempotent` |
-| `github-notifications` | `Dollypack_GitHub_Notifications` | List and manage GitHub notifications (list, mark-read). | `idempotent` |
-| `github-search` | `Dollypack_GitHub_Search` | Search GitHub for code, issues, repositories, or commits. | `readonly`, `idempotent` |
-| `github-write` | `Dollypack_GitHub_Write` | Create or update resources on GitHub — issues, comments, pull requests, etc. | `destructive` |
-| `google-calendar-read` | `Dollypack_Google_Calendar_Read` | Read calendars and events from Google Calendar (list_calendars, list_events, get_event). | `readonly`, `idempotent` |
+| Ability ID | Package | Class | Description | Annotations |
+|---|---|---|---|---|
+| `wp-remote-request` | `dollypack-core` | `Dollypack_WP_Remote_Request` | Perform an HTTP request using `wp_remote_request()`. | `idempotent` |
+| `github-read` | `dollypack-github` | `Dollypack_GitHub_Read` | Read files, directory listings, and repository metadata from the GitHub API. | `readonly`, `idempotent` |
+| `github-notifications` | `dollypack-github` | `Dollypack_GitHub_Notifications` | List and manage GitHub notifications (list, mark-read). | `idempotent` |
+| `github-search` | `dollypack-github` | `Dollypack_GitHub_Search` | Search GitHub for code, issues, repositories, or commits. | `readonly`, `idempotent` |
+| `github-write` | `dollypack-github` | `Dollypack_GitHub_Write` | Create or update resources on GitHub — issues, comments, pull requests, etc. | `destructive` |
+| `google-calendar-read` | `dollypack-google` | `Dollypack_Google_Calendar_Read` | Read calendars and events from Google Calendar (list_calendars, list_events, get_event). | `readonly`, `idempotent` |
 
 ## Adding a new ability
 
@@ -46,18 +59,32 @@ Dollypack_Ability (abstract)
 
 ### 3. Register the ability
 
-Add an entry to `dollypack_get_available_abilities()` in `dollypack.php`:
+Register the ability with `Dollypack_Runtime` in the relevant package bootstrap:
+
+- `packages/core/bootstrap.php` for core abilities
+- `packages/github/bootstrap.php` for GitHub abilities
+- `packages/google/bootstrap.php` for Google abilities
+- `packages/full/bootstrap.php` for the standalone full bundle
+
+Use the plugin directory provided by the entrypoint, which is resolved with `plugin_dir_path( __FILE__ )`.
 
 ```php
-'my-ability' => array(
-    'file'  => 'abilities/my-ability.php',
-    'class' => 'Dollypack_My_Ability',
-),
+Dollypack_Runtime::register_ability(
+    'my-ability',
+    array(
+        'file'  => $dollypack_plugin_dir . 'abilities/my-ability.php',
+        'class' => 'Dollypack_My_Ability',
+    )
+);
 ```
 
-### 4. Update this README
+### 4. Add the ability to package manifests
 
-Add a row to the abilities table above.
+Update `config/packages.php` so the ability is bundled into the correct plugin ZIPs.
+
+### 5. Update this README
+
+Add a row to the abilities table above and note which package now contains it.
 
 ## Settings pattern
 
@@ -88,8 +115,9 @@ When adding a new service (e.g. Slack), create an abstract parent in `includes/`
 1. Extend `Dollypack_Ability`.
 2. Set a shared `$id` (e.g. `'slack'`), `$group_label`, and `$settings` for credentials.
 3. Add a helper method for authenticated API requests (like `github_request()`).
-4. Require the file in `dollypack.php`.
-5. Have each concrete ability extend this parent.
+4. Load the file from the relevant bootstrap(s).
+5. Add the parent class file to the appropriate module in `config/packages.php`.
+6. Have each concrete ability extend this parent.
 
 ### OAuth settings pattern
 
@@ -112,3 +140,10 @@ These rules apply when creating or modifying abilities:
 - **Use enums to constrain actions.** When a single ability supports multiple operations, use an `enum` in the input schema (e.g. `github-notifications` has `action: ['list', 'mark-read']`).
 - **Mark annotations accurately.** Set `readonly`, `destructive`, and `idempotent` to reflect what the ability actually does. These inform the agent's decision-making.
 - **Keep this file up to date.** This README is also `CLAUDE.md` and `AGENTS.md`. When you add or change an ability, update the abilities table and any relevant sections.
+
+## Packaging
+
+- Build all release ZIPs locally with `php scripts/build-packages.php --all`.
+- Package composition lives in `config/packages.php`.
+- GitHub Actions publishes `dollypack-core.zip`, `dollypack-github.zip`, `dollypack-google.zip`, and `dollypack-full.zip` as release assets for version tags.
+- Add-on plugins include a fallback admin notice with the releases URL if `dollypack-core` is missing.

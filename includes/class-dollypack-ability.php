@@ -97,13 +97,6 @@ abstract class Dollypack_Ability {
 	}
 
 	/**
-	 * Back-compat alias for older code paths that expect an option-style name.
-	 */
-	public function get_setting_option_name( $setting_id ) {
-		return $this->get_setting_storage_key( $setting_id );
-	}
-
-	/**
 	 * Get the merged setting definition for a setting ID.
 	 */
 	public function get_setting_definition( $setting_id ) {

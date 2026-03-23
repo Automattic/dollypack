@@ -30,7 +30,7 @@ class Dollypack_Settings {
 		if ( ! is_array( $value ) ) {
 			return array();
 		}
-		$available = array_keys( dollypack_get_available_abilities() );
+		$available = array_keys( Dollypack_Runtime::get_available_abilities() );
 		return array_values( array_intersect( $value, $available ) );
 	}
 
@@ -87,7 +87,7 @@ class Dollypack_Settings {
 		check_admin_referer( self::SAVE_ACTION );
 
 		$user_id          = get_current_user_id();
-		$instances        = dollypack_get_ability_instances();
+		$instances        = Dollypack_Runtime::get_ability_instances();
 		$setting_fields   = $this->get_setting_fields( $instances );
 		$submitted_fields = isset( $_POST[ self::SETTINGS_INPUT_KEY ] ) ? (array) wp_unslash( $_POST[ self::SETTINGS_INPUT_KEY ] ) : array();
 
@@ -182,7 +182,7 @@ class Dollypack_Settings {
 	}
 
 	public function render_page() {
-		$instances = dollypack_get_ability_instances();
+		$instances = Dollypack_Runtime::get_ability_instances();
 		$enabled   = get_option( self::OPTION_KEY, array_keys( $instances ) );
 		$groups    = $this->get_grouped_abilities( $instances );
 		?>

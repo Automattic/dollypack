@@ -119,12 +119,21 @@ abstract class Dollypack_Google_Ability extends Dollypack_Ability {
 		delete_user_meta( $user_id, self::EXPIRY_OPTION );
 	}
 
-	public function __construct() {
-		if ( ! self::$hooks_registered ) {
-			add_action( 'admin_post_' . self::CALLBACK_ACTION, array( __CLASS__, 'handle_oauth_callback' ) );
-			add_action( 'admin_post_' . self::DISCONNECT_ACTION, array( __CLASS__, 'handle_disconnect' ) );
-			self::$hooks_registered = true;
+	/**
+	 * Register the Google admin-post hooks once per request.
+	 */
+	public static function ensure_hooks_registered() {
+		if ( self::$hooks_registered ) {
+			return;
 		}
+
+		add_action( 'admin_post_' . self::CALLBACK_ACTION, array( __CLASS__, 'handle_oauth_callback' ) );
+		add_action( 'admin_post_' . self::DISCONNECT_ACTION, array( __CLASS__, 'handle_disconnect' ) );
+		self::$hooks_registered = true;
+	}
+
+	public function __construct() {
+		self::ensure_hooks_registered();
 	}
 
 	/**
@@ -187,7 +196,7 @@ abstract class Dollypack_Google_Ability extends Dollypack_Ability {
 	 */
 	private static function exchange_code_for_tokens( $code ) {
 		$client_id     = get_option( 'dollypack_google_google_client_id', '' );
-		$client_secret = get_option( 'dollypack_google_google_client_secret', '' );
+		$client_secret = Dollypack_Crypto::decrypt( get_option( 'dollypack_google_google_client_secret', '' ) );
 		$redirect_uri  = admin_url( 'admin-post.php?action=' . self::CALLBACK_ACTION );
 
 		$response = wp_remote_post( self::TOKEN_URL, array(
