@@ -27,8 +27,10 @@ abstract class Dollypack_Ability {
 	protected $description = '';
 
 	/**
-	 * Declarative settings array (PersonalOS format).
-	 * Keys are setting IDs, values are arrays with 'type', 'name', 'label' etc.
+	 * Declarative settings array.
+	 * Keys are setting IDs, values are arrays with 'type', 'name', 'label',
+	 * and optional 'storage' / 'encrypted' flags.
+	 * Storage defaults to 'site' and may be set to 'user' for per-user secrets.
 	 */
 	protected $settings = array();
 
@@ -49,44 +51,151 @@ abstract class Dollypack_Ability {
 	}
 
 	/**
-	 * Get the option name for a setting.
+	 * Get the storage key for a setting.
+	 * For site-scoped settings this becomes the option name.
+	 * For user-scoped settings this becomes the user meta key.
+	 *
 	 * For settings declared on this class, uses this class's $id prefix.
-	 * For inherited settings, uses the declaring class's $id prefix so the option is shared.
+	 * For inherited settings, uses the declaring class's $id prefix so the key is shared.
 	 */
-	public function get_setting_option_name( $setting_id ) {
+	public function get_setting_storage_key( $setting_id ) {
 		// Walk up the class hierarchy to find the class that originally declares this setting.
 		// getDefaultProperties() includes inherited values, so we must compare with the
 		// parent's defaults to determine whether this class actually introduces the setting.
 		$class = new ReflectionClass( $this );
 		while ( $class && $class->getName() !== 'Dollypack_Ability' ) {
 			$defaults = $class->getDefaultProperties();
-			if ( isset( $defaults['settings'][ $setting_id ] ) ) {
-				$parent = $class->getParentClass();
-				if ( $parent && $parent->getName() !== 'Dollypack_Ability' ) {
-					$parent_defaults = $parent->getDefaultProperties();
+				if ( isset( $defaults['settings'][ $setting_id ] ) ) {
+					$parent = $class->getParentClass();
+					if ( $parent && $parent->getName() !== 'Dollypack_Ability' ) {
+						$parent_defaults = $parent->getDefaultProperties();
 					if ( isset( $parent_defaults['settings'][ $setting_id ] ) ) {
 						// Inherited from parent — keep walking up.
 						$class = $parent;
 						continue;
 					}
-				}
-				// This class is the declaring class.
-				$declaring_id = $defaults['id'] ?? $this->id;
-				return 'dollypack_' . $declaring_id . '_' . $setting_id;
-			}
-			$class = $class->getParentClass();
-		}
+					}
+					// This class is the declaring class.
+					$declaring_id = $defaults['id'] ?? $this->id;
+					$key = 'dollypack_' . $declaring_id . '_' . $setting_id;
+					if ( 'user' === $this->get_setting_storage_scope( $setting_id ) ) {
+						return '_' . $key;
+					}
 
-		// Fallback: use own $id.
-		return 'dollypack_' . $this->id . '_' . $setting_id;
+					return $key;
+				}
+				$class = $class->getParentClass();
+			}
+
+			// Fallback: use own $id.
+			$key = 'dollypack_' . $this->id . '_' . $setting_id;
+			if ( 'user' === $this->get_setting_storage_scope( $setting_id ) ) {
+				return '_' . $key;
+			}
+
+			return $key;
 	}
 
 	/**
-	 * Read a setting value.
+	 * Back-compat alias for older code paths that expect an option-style name.
 	 */
-	public function get_setting( $setting_id ) {
-		$option_name = $this->get_setting_option_name( $setting_id );
-		return get_option( $option_name, '' );
+	public function get_setting_option_name( $setting_id ) {
+		return $this->get_setting_storage_key( $setting_id );
+	}
+
+	/**
+	 * Get the merged setting definition for a setting ID.
+	 */
+	public function get_setting_definition( $setting_id ) {
+		$settings = $this->get_all_settings();
+		return $settings[ $setting_id ] ?? array();
+	}
+
+	/**
+	 * Determine whether a setting is stored per site or per user.
+	 */
+	public function get_setting_storage_scope( $setting_id ) {
+		$setting = $this->get_setting_definition( $setting_id );
+		return ( isset( $setting['storage'] ) && 'user' === $setting['storage'] ) ? 'user' : 'site';
+	}
+
+	/**
+	 * Determine whether a setting should be encrypted before storage.
+	 */
+	public function is_setting_encrypted( $setting_id ) {
+		$setting = $this->get_setting_definition( $setting_id );
+		return ! empty( $setting['encrypted'] );
+	}
+
+	/**
+	 * Read a setting value from its configured storage scope.
+	 */
+	public function get_setting( $setting_id, $user_id = 0 ) {
+		$storage_key = $this->get_setting_storage_key( $setting_id );
+
+		if ( 'user' === $this->get_setting_storage_scope( $setting_id ) ) {
+			$user_id = $user_id ?: get_current_user_id();
+			if ( ! $user_id ) {
+				return '';
+			}
+
+			$value = get_user_meta( $user_id, $storage_key, true );
+		} else {
+			$value = get_option( $storage_key, '' );
+		}
+
+		if ( ! $this->is_setting_encrypted( $setting_id ) || '' === $value ) {
+			return $value;
+		}
+
+		$decrypted_value = Dollypack_Crypto::decrypt( $value );
+
+		// Migrate legacy plaintext secrets the next time they are read.
+		if ( ! Dollypack_Crypto::is_encrypted_string( $value ) && '' !== $decrypted_value ) {
+			$this->update_setting( $setting_id, $decrypted_value, $user_id );
+		}
+
+		return $decrypted_value;
+	}
+
+	/**
+	 * Persist a setting value to its configured storage scope.
+	 */
+	public function update_setting( $setting_id, $value, $user_id = 0 ) {
+		$storage_key = $this->get_setting_storage_key( $setting_id );
+
+		if ( $this->is_setting_encrypted( $setting_id ) && '' !== $value ) {
+			$value = Dollypack_Crypto::encrypt( (string) $value );
+		}
+
+		if ( 'user' === $this->get_setting_storage_scope( $setting_id ) ) {
+			$user_id = $user_id ?: get_current_user_id();
+			if ( ! $user_id ) {
+				return false;
+			}
+
+			return update_user_meta( $user_id, $storage_key, $value );
+		}
+
+		return update_option( $storage_key, $value );
+	}
+
+	/**
+	 * Delete a setting value from its configured storage scope.
+	 */
+	public function delete_setting( $setting_id, $user_id = 0 ) {
+		$storage_key = $this->get_setting_storage_key( $setting_id );
+
+		if ( 'user' === $this->get_setting_storage_scope( $setting_id ) ) {
+			$user_id = $user_id ?: get_current_user_id();
+			if ( ! $user_id ) {
+				return false;
+			}
+
+			return delete_user_meta( $user_id, $storage_key );
+		}
+
+		return delete_option( $storage_key );
 	}
 
 	/**

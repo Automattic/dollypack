@@ -66,16 +66,20 @@ Abilities declare settings as a `$settings` array on the class:
 ```php
 protected $settings = array(
     'github_token' => array(
-        'type'  => 'password',
-        'name'  => 'GitHub Token',
-        'label' => 'Personal access token for the GitHub API.',
+        'type'      => 'password',
+        'name'      => 'GitHub Token',
+        'label'     => 'Personal access token for the GitHub API.',
+        'storage'   => 'user',
+        'encrypted' => true,
     ),
 );
 ```
 
-- **Inheritance**: Settings declared on a parent class (e.g. `Dollypack_GitHub_Ability`) are shared by all children. The option name is prefixed with the declaring class's `$id`, so all GitHub abilities share a single `dollypack_github_github_token` option.
+- **Inheritance**: Settings declared on a parent class (e.g. `Dollypack_GitHub_Ability`) are shared by all children. The storage key is prefixed with the declaring class's `$id`, so all GitHub abilities share a single `_dollypack_github_github_token` user-meta key.
 - **`$group_label`**: Set on a parent class to group its children under one heading in the admin UI (e.g. `'GitHub'`).
-- **Option naming**: `dollypack_{declaring_class_id}_{setting_id}`.
+- **`storage`**: Optional. Use `'site'` for WordPress options or `'user'` for user meta. Defaults to `'site'`.
+- **`encrypted`**: Optional. When `true`, Dollypack encrypts the stored value before writing it to the database and decrypts it on read. Use this for tokens, client secrets, and similar credentials.
+- **Storage key naming**: Site options use `dollypack_{declaring_class_id}_{setting_id}`. User meta uses `_{same_key}` so it is treated as protected meta by WordPress conventions.
 
 ### Adding a service-level parent class
 
@@ -91,11 +95,12 @@ When adding a new service (e.g. Slack), create an abstract parent in `includes/`
 
 For services requiring OAuth 2.0 (e.g. Google), the parent class handles the full authorization code flow:
 
-1. **`$settings`** declares `client_id` and `client_secret` — rendered as standard inputs by the settings page.
+1. **`$settings`** declares site-scoped app credentials like `client_id` and `client_secret` — rendered as standard inputs by the settings page.
 2. **`render_settings_html()`** — static method that outputs extra `<tr>` rows in the settings form (Connect/Disconnect buttons, connection status). The settings page calls this automatically if the method exists on the parent class.
 3. **`handle_oauth_callback()`** and **`handle_disconnect()`** — registered as `admin_post_` hooks in the constructor (with a static flag to avoid duplicate registration).
 4. **`has_required_settings()`** is overridden to also check that a refresh token exists, so abilities stay disabled until the OAuth flow completes.
-5. **Token storage** — access token, refresh token, and expiry are stored as separate `wp_options`. The `get_access_token()` method auto-refreshes when the token is expired or expiring within 60 seconds.
+5. **Token storage** — access token and refresh token are stored per user in encrypted `user_meta`; expiry remains plain because it is not secret. The `get_access_token()` method auto-refreshes when the token is expired or expiring within 60 seconds.
+6. **Key material** — encryption keys are derived from WordPress salts via `wp_salt()`. If those salts are rotated, stored secrets can no longer be decrypted and must be re-entered or re-authorized.
 
 ## Design principles
 

@@ -12,20 +12,23 @@ abstract class Dollypack_Google_Ability extends Dollypack_Ability {
 
 	protected $settings = array(
 		'google_client_id'     => array(
-			'type'  => 'text',
-			'name'  => 'Client ID',
-			'label' => 'OAuth Client ID from Google Cloud Console.',
+			'type'    => 'text',
+			'name'    => 'Client ID',
+			'label'   => 'OAuth Client ID from Google Cloud Console.',
+			'storage' => 'site',
 		),
 		'google_client_secret' => array(
-			'type'  => 'password',
-			'name'  => 'Client Secret',
-			'label' => 'OAuth Client Secret from Google Cloud Console.',
+			'type'      => 'password',
+			'name'      => 'Client Secret',
+			'label'     => 'OAuth Client Secret from Google Cloud Console.',
+			'storage'   => 'site',
+			'encrypted' => true,
 		),
 	);
 
-	const TOKEN_OPTION         = 'dollypack_google_access_token';
-	const REFRESH_TOKEN_OPTION = 'dollypack_google_refresh_token';
-	const EXPIRY_OPTION        = 'dollypack_google_token_expiry';
+	const TOKEN_OPTION         = '_dollypack_google_access_token';
+	const REFRESH_TOKEN_OPTION = '_dollypack_google_refresh_token';
+	const EXPIRY_OPTION        = '_dollypack_google_token_expiry';
 
 	const AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 	const TOKEN_URL     = 'https://oauth2.googleapis.com/token';
@@ -38,6 +41,83 @@ abstract class Dollypack_Google_Ability extends Dollypack_Ability {
 	 * Track whether hooks have been registered to avoid duplicates.
 	 */
 	private static $hooks_registered = false;
+
+	/**
+	 * Token values that should be encrypted before storage.
+	 */
+	private static $encrypted_token_keys = array(
+		self::TOKEN_OPTION,
+		self::REFRESH_TOKEN_OPTION,
+	);
+
+	/**
+	 * Get the current WordPress user ID for per-user OAuth storage.
+	 */
+	private static function get_token_user_id() {
+		return get_current_user_id();
+	}
+
+	/**
+	 * Read a stored OAuth token value for the current user.
+	 */
+	private static function get_token_value( $meta_key, $user_id = 0 ) {
+		$user_id = $user_id ?: self::get_token_user_id();
+		if ( ! $user_id ) {
+			return '';
+		}
+
+		$value = get_user_meta( $user_id, $meta_key, true );
+
+		if ( ! self::should_encrypt_token_value( $meta_key ) || '' === $value ) {
+			return $value;
+		}
+
+		$decrypted_value = Dollypack_Crypto::decrypt( $value );
+
+		// Migrate legacy plaintext tokens after the first successful read.
+		if ( ! Dollypack_Crypto::is_encrypted_string( $value ) && '' !== $decrypted_value ) {
+			self::set_token_value( $meta_key, $decrypted_value, $user_id );
+		}
+
+		return $decrypted_value;
+	}
+
+	/**
+	 * Persist a stored OAuth token value for the current user.
+	 */
+	private static function set_token_value( $meta_key, $value, $user_id = 0 ) {
+		$user_id = $user_id ?: self::get_token_user_id();
+		if ( ! $user_id ) {
+			return false;
+		}
+
+		if ( self::should_encrypt_token_value( $meta_key ) && '' !== $value ) {
+			$value = Dollypack_Crypto::encrypt( (string) $value );
+		}
+
+		return update_user_meta( $user_id, $meta_key, $value );
+	}
+
+	/**
+	 * Determine whether a token/meta value should be encrypted at rest.
+	 */
+	private static function should_encrypt_token_value( $meta_key ) {
+		return in_array( $meta_key, self::$encrypted_token_keys, true );
+	}
+
+	/**
+	 * Delete all stored OAuth token values for the current user.
+	 */
+	private static function delete_token_values( $user_id = 0 ) {
+		$user_id = $user_id ?: self::get_token_user_id();
+		if ( ! $user_id ) {
+			return;
+		}
+
+		delete_user_meta( $user_id, self::TOKEN_OPTION );
+		delete_user_meta( $user_id, self::REFRESH_TOKEN_OPTION );
+		delete_user_meta( $user_id, self::EXPIRY_OPTION );
+	}
 
 	public function __construct() {
 		if ( ! self::$hooks_registered ) {
@@ -135,11 +215,11 @@ abstract class Dollypack_Google_Ability extends Dollypack_Ability {
 			return new WP_Error( 'google_token_error', 'No access token in response.' );
 		}
 
-		update_option( self::TOKEN_OPTION, $data['access_token'] );
-		update_option( self::EXPIRY_OPTION, time() + (int) ( $data['expires_in'] ?? 3600 ) );
+		self::set_token_value( self::TOKEN_OPTION, $data['access_token'] );
+		self::set_token_value( self::EXPIRY_OPTION, time() + (int) ( $data['expires_in'] ?? 3600 ) );
 
 		if ( ! empty( $data['refresh_token'] ) ) {
-			update_option( self::REFRESH_TOKEN_OPTION, $data['refresh_token'] );
+			self::set_token_value( self::REFRESH_TOKEN_OPTION, $data['refresh_token'] );
 		}
 
 		return true;
@@ -155,9 +235,7 @@ abstract class Dollypack_Google_Ability extends Dollypack_Ability {
 
 		check_admin_referer( self::DISCONNECT_ACTION );
 
-		delete_option( self::TOKEN_OPTION );
-		delete_option( self::REFRESH_TOKEN_OPTION );
-		delete_option( self::EXPIRY_OPTION );
+		self::delete_token_values();
 
 		wp_safe_redirect( admin_url( 'options-general.php?page=dollypack&google_disconnected=1' ) );
 		exit;
@@ -167,7 +245,7 @@ abstract class Dollypack_Google_Ability extends Dollypack_Ability {
 	 * Refresh the access token using the refresh token.
 	 */
 	private function refresh_access_token() {
-		$refresh_token = get_option( self::REFRESH_TOKEN_OPTION, '' );
+		$refresh_token = self::get_token_value( self::REFRESH_TOKEN_OPTION );
 		if ( empty( $refresh_token ) ) {
 			return new WP_Error( 'no_refresh_token', 'No refresh token available. Please reconnect to Google.' );
 		}
@@ -194,9 +272,7 @@ abstract class Dollypack_Google_Ability extends Dollypack_Ability {
 		if ( isset( $data['error'] ) ) {
 			// invalid_grant means the refresh token is revoked or expired.
 			if ( 'invalid_grant' === $data['error'] ) {
-				delete_option( self::TOKEN_OPTION );
-				delete_option( self::REFRESH_TOKEN_OPTION );
-				delete_option( self::EXPIRY_OPTION );
+				self::delete_token_values();
 			}
 			return new WP_Error( 'google_refresh_error', $data['error_description'] ?? $data['error'] );
 		}
@@ -205,8 +281,8 @@ abstract class Dollypack_Google_Ability extends Dollypack_Ability {
 			return new WP_Error( 'google_refresh_error', 'No access token in refresh response.' );
 		}
 
-		update_option( self::TOKEN_OPTION, $data['access_token'] );
-		update_option( self::EXPIRY_OPTION, time() + (int) ( $data['expires_in'] ?? 3600 ) );
+		self::set_token_value( self::TOKEN_OPTION, $data['access_token'] );
+		self::set_token_value( self::EXPIRY_OPTION, time() + (int) ( $data['expires_in'] ?? 3600 ) );
 
 		return $data['access_token'];
 	}
@@ -215,8 +291,8 @@ abstract class Dollypack_Google_Ability extends Dollypack_Ability {
 	 * Get a valid access token, refreshing if expired or expiring within 60s.
 	 */
 	protected function get_access_token() {
-		$token  = get_option( self::TOKEN_OPTION, '' );
-		$expiry = (int) get_option( self::EXPIRY_OPTION, 0 );
+		$token  = self::get_token_value( self::TOKEN_OPTION );
+		$expiry = (int) self::get_token_value( self::EXPIRY_OPTION );
 
 		if ( ! empty( $token ) && $expiry > ( time() + 60 ) ) {
 			return $token;
@@ -280,7 +356,7 @@ abstract class Dollypack_Google_Ability extends Dollypack_Ability {
 			return false;
 		}
 
-		$refresh_token = get_option( self::REFRESH_TOKEN_OPTION, '' );
+		$refresh_token = self::get_token_value( self::REFRESH_TOKEN_OPTION );
 		return ! empty( $refresh_token );
 	}
 
@@ -288,9 +364,9 @@ abstract class Dollypack_Google_Ability extends Dollypack_Ability {
 	 * Render Google-specific settings rows for the admin page.
 	 */
 	public static function render_settings_html() {
-		$client_id     = get_option( 'dollypack_google_google_client_id', '' );
-		$client_secret = get_option( 'dollypack_google_google_client_secret', '' );
-		$refresh_token = get_option( self::REFRESH_TOKEN_OPTION, '' );
+		$client_id       = get_option( 'dollypack_google_google_client_id', '' );
+		$client_secret   = get_option( 'dollypack_google_google_client_secret', '' );
+		$refresh_token   = self::get_token_value( self::REFRESH_TOKEN_OPTION );
 		$has_credentials = ! empty( $client_id ) && ! empty( $client_secret );
 		$is_connected    = ! empty( $refresh_token );
 		$redirect_uri    = admin_url( 'admin-post.php?action=' . self::CALLBACK_ACTION );
@@ -307,7 +383,7 @@ abstract class Dollypack_Google_Ability extends Dollypack_Ability {
 			<td>
 				<?php if ( $is_connected ) : ?>
 					<p style="color: #00a32a; margin-top: 0;">
-						<strong>&#10003; Connected to Google</strong>
+						<strong>&#10003; Connected to Google for your account</strong>
 					</p>
 					<a
 						href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=' . self::DISCONNECT_ACTION ), self::DISCONNECT_ACTION ) ); ?>"
@@ -322,7 +398,7 @@ abstract class Dollypack_Google_Ability extends Dollypack_Ability {
 					>
 						Connect to Google
 					</a>
-					<p class="description">Save your Client ID and Client Secret above, then click to authorize.</p>
+					<p class="description">Save the site-wide Client ID and Client Secret above, then click to authorize your account.</p>
 				<?php else : ?>
 					<p class="description">
 						Enter your Google OAuth Client ID and Client Secret above, then save to enable the Connect button.

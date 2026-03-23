@@ -12,9 +12,11 @@ abstract class Dollypack_GitHub_Ability extends Dollypack_Ability {
 
 	protected $settings = array(
 		'github_token' => array(
-			'type'  => 'password',
-			'name'  => 'GitHub Token',
-			'label' => 'Personal access token for the GitHub API.',
+			'type'      => 'password',
+			'name'      => 'GitHub Token',
+			'label'     => 'Personal access token for the GitHub API.',
+			'storage'   => 'user',
+			'encrypted' => true,
 		),
 	);
 

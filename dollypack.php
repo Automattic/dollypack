@@ -16,6 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 define( 'DOLLYPACK_DIR', __DIR__ );
 
+require_once DOLLYPACK_DIR . '/includes/class-dollypack-crypto.php';
 require_once DOLLYPACK_DIR . '/includes/class-dollypack-ability.php';
 require_once DOLLYPACK_DIR . '/includes/class-dollypack-github-ability.php';
 require_once DOLLYPACK_DIR . '/includes/class-dollypack-google-ability.php';
