@@ -22,7 +22,7 @@ if ( Dollypack_Package_Helper::abort_if_conflicting_plugins_active(
 	'Dollypack Full',
 	plugin_basename( __FILE__ ),
 	array(
-		'dollypack-full/dollypack-full.php',
+		'dollypack/dollypack.php',
 		'dollypack-core/dollypack-core.php',
 		'dollypack-github/dollypack-github.php',
 		'dollypack-google/dollypack-google.php',
@@ -31,4 +31,4 @@ if ( Dollypack_Package_Helper::abort_if_conflicting_plugins_active(
 	return;
 }
 
-require_once __DIR__ . '/packages/full/bootstrap.php';
+require_once __DIR__ . '/bootstrap.php';
