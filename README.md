@@ -155,8 +155,31 @@ These rules apply when creating or modifying abilities:
 
 ## Packaging
 
-- Build all release ZIPs locally with `php scripts/build-packages.php --all`.
-- Override the packaged plugin version with `php scripts/build-packages.php --all --version 1.2.0`.
-- Package composition lives in `config/packages.php`.
+```bash
+# Build all release ZIPs into dist/
+php scripts/build-packages.php --all
+
+# Build with a specific version injected into plugin headers
+php scripts/build-packages.php --all --version 1.2.0
+
+# Build a single package
+php scripts/build-packages.php dollypack-core
+```
+
+- Package composition lives in `config/packages.php`, which defines modules (file groups) and packages (collections of modules). Module entries can be simple strings (source = destination) or arrays with explicit `source`/`destination` mappings for files that relocate into the package root (like bootstraps).
+- The build script resolves modules into file lists, copies them into `dist/{package}/`, injects the version into the plugin header, runs `php -l` on every PHP file, and creates the ZIP.
 - GitHub Actions publishes `dollypack-core.zip`, `dollypack-github.zip`, `dollypack-google.zip`, and `dollypack-full.zip` as release assets for `v*` tags, and injects the tag version into each plugin header.
 - Add-on plugins include a fallback admin notice with the releases URL if `dollypack-core` is missing.
+- There is no test suite, linter config, or dependency manager. The only automated check is `php -l` syntax linting during the build.
+
+## Architecture
+
+The root `dollypack.php` is the development entrypoint — it acts as a full bundle and must not be installed alongside any packaged plugin. It loads `Dollypack_Package_Helper` to detect conflicts with packaged plugins, then delegates to `packages/full/bootstrap.php`.
+
+Each package has its own entrypoint (`packages/{name}/dollypack-{name}.php`) and bootstrap (`packages/{name}/bootstrap.php`). The core and full bootstraps load the runtime and register abilities directly. Add-on bootstraps (github, google) defer registration to `plugins_loaded` at priority 20 and call `Dollypack_Package_Helper::ensure_core_runtime()` to verify core is active first.
+
+`Dollypack_Runtime` is a static singleton that manages the ability lifecycle:
+
+1. Abilities are registered via `register_ability($id, ['file' => ..., 'class' => ...])` — class files are lazy-loaded on first instantiation.
+2. On `wp_abilities_api_categories_init`, it registers the `dollypack` category.
+3. On `wp_abilities_api_init`, it instantiates all registered abilities, checks which are enabled via the `dollypack_enabled_abilities` option, verifies required settings are populated, and calls `register()` on each qualifying ability.
