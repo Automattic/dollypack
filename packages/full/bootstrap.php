@@ -10,6 +10,8 @@ if ( ! isset( $dollypack_plugin_dir ) ) {
 
 require_once $dollypack_plugin_dir . 'includes/class-dollypack-crypto.php';
 require_once $dollypack_plugin_dir . 'includes/class-dollypack-ability.php';
+require_once $dollypack_plugin_dir . 'includes/class-dollypack-custom-ability.php';
+require_once $dollypack_plugin_dir . 'includes/class-dollypack-custom-ability-manager.php';
 require_once $dollypack_plugin_dir . 'includes/class-dollypack-runtime.php';
 require_once $dollypack_plugin_dir . 'includes/class-settings.php';
 
@@ -24,6 +26,7 @@ if ( ! class_exists( 'Dollypack_Google_Ability', false ) ) {
 Dollypack_Google_Ability::ensure_hooks_registered();
 
 Dollypack_Runtime::boot();
+Dollypack_Custom_Ability_Manager::boot( $dollypack_plugin_dir, $dollypack_plugin_file ?? '' );
 Dollypack_Runtime::boot_settings();
 
 Dollypack_Runtime::register_ability(
@@ -31,6 +34,14 @@ Dollypack_Runtime::register_ability(
 	array(
 		'file'  => $dollypack_plugin_dir . 'abilities/wp-remote-request.php',
 		'class' => 'Dollypack_WP_Remote_Request',
+	)
+);
+
+Dollypack_Runtime::register_ability(
+	'edit-custom-ability',
+	array(
+		'file'  => $dollypack_plugin_dir . 'abilities/edit-custom-ability.php',
+		'class' => 'Dollypack_Edit_Custom_Ability',
 	)
 );
 

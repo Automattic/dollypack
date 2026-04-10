@@ -11,6 +11,8 @@ return array(
 		'runtime'            => array(
 			'includes/class-dollypack-crypto.php',
 			'includes/class-dollypack-ability.php',
+			'includes/class-dollypack-custom-ability.php',
+			'includes/class-dollypack-custom-ability-manager.php',
 			'includes/class-dollypack-package-helper.php',
 			'includes/class-dollypack-runtime.php',
 			'includes/class-settings.php',
@@ -57,6 +59,7 @@ return array(
 		),
 		'core_abilities'     => array(
 			'abilities/wp-remote-request.php',
+			'abilities/edit-custom-ability.php',
 		),
 		'github_group'       => array(
 			'includes/class-dollypack-github-ability.php',
