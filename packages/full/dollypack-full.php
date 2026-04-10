@@ -15,6 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 $dollypack_plugin_dir = plugin_dir_path( __FILE__ );
+$dollypack_plugin_file = __FILE__;
 
 require_once $dollypack_plugin_dir . 'includes/class-dollypack-package-helper.php';
 

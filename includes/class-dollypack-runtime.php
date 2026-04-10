@@ -47,8 +47,10 @@ if ( ! class_exists( 'Dollypack_Runtime' ) ) {
 			}
 
 			self::$abilities[ $id ] = array(
-				'file'  => $definition['file'] ?? '',
-				'class' => $definition['class'],
+				'file'               => $definition['file'] ?? '',
+				'class'              => $definition['class'],
+				'always_enabled'     => ! empty( $definition['always_enabled'] ),
+				'hidden_in_settings' => ! empty( $definition['hidden_in_settings'] ),
 			);
 
 			self::$instances = null;
@@ -91,6 +93,23 @@ if ( ! class_exists( 'Dollypack_Runtime' ) ) {
 			}
 
 			return self::$instances;
+		}
+
+		/**
+		 * Return only ability instances that should appear on the settings screen.
+		 *
+		 * @return array<string, Dollypack_Ability>
+		 */
+		public static function get_settings_ability_instances() {
+			$instances = self::get_ability_instances();
+
+			foreach ( $instances as $id => $ability ) {
+				if ( ! empty( self::$abilities[ $id ]['hidden_in_settings'] ) ) {
+					unset( $instances[ $id ] );
+				}
+			}
+
+			return $instances;
 		}
 
 		/**
@@ -146,7 +165,9 @@ if ( ! class_exists( 'Dollypack_Runtime' ) ) {
 			$enabled   = get_option( 'dollypack_enabled_abilities', array_keys( $instances ) );
 
 			foreach ( $instances as $id => $ability ) {
-				if ( in_array( $id, $enabled, true ) && $ability->has_required_settings() ) {
+				$is_enabled = ! empty( self::$abilities[ $id ]['always_enabled'] ) || in_array( $id, $enabled, true );
+
+				if ( $is_enabled && $ability->has_required_settings() ) {
 					$ability->register();
 				}
 			}
